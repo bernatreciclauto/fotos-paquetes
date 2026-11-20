@@ -615,6 +615,10 @@ function pintar() {
     $('ayuda').textContent = ENTREGA.tipo === 'albaran'
       ? 'Escanea cada paquete que se lleva el transportista y haz la foto del albarán de entrega.'
       : 'Foto de la hoja de control firmada. Si escaneas los paquetes, se marcan seguro; si no, se leen de la foto.';
+    // que se vea qué falta (antes el botón quedaba gris sin más)
+    if (fotos.length && ENTREGA.tipo === 'albaran' && !ENTREGA.codigos.length && !enviando)
+      msg('Falta el paquete: pulsa «▣ Escanear paquete» o «⌨️ Escribir nº de pedido».', true);
+    else if (!fotos.length && ENTREGA.codigos.length && !enviando && /Falta/.test($('msg').textContent)) msg('');
   }
   if (MODO === 'paquete') {
     // La etiqueta de control va en la hoja de control, no en la caja (25-10): lo normal es escanearla de cerca.
@@ -687,7 +691,14 @@ function ponerModo(m) {
   pintarEntrega(); pintarMedias(); cabecera(); pintar(); msg('');
 }
 $('tabPaq').onclick = function () { if (!enviando) { P = ''; ponerModo('paquete'); recuperarPendiente(); } };
-$('tabEnt').onclick = function () { if (!enviando) ponerModo('entrega'); };
+$('tabEnt').onclick = function () {
+  if (enviando) return;
+  var pedido = P;
+  ponerModo('entrega');
+  // 20-11 (Bernat): se abre la app escaneando el QR de una etiqueta y luego se toca «Entrega» → ese paquete ya va en la
+  // lista (antes la lista empezaba vacía, no dejaba enviar y parecía que la app había «perdido» el pedido)
+  if (MODO === 'entrega' && pedido && ENTREGA.codigos.indexOf(pedido) < 0) anadirEntrega(pedido);
+};
 $('tAlb').onclick = function () { ENTREGA.tipo = 'albaran'; pintarEntrega(); cabecera(); pintar(); };
 $('tCtl').onclick = function () { ENTREGA.tipo = 'control'; pintarEntrega(); cabecera(); pintar(); };
 
