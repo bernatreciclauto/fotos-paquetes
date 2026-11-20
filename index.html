@@ -63,6 +63,13 @@
   .medias button, #piezas button { display:block; width:100%; text-align:left; margin-top:8px; padding:12px; font-size:16px;
            background:#fff; color:#202124; border:1px solid var(--borde); border-radius:8px; }
   .sec.ancho { width:100%; margin-top:8px; }
+  .cajas { background:#fff; border:1px solid var(--borde); border-radius:10px; padding:12px; margin-top:8px; font-size:16px; }
+  #cajasSug { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0 8px; }
+  #cajasSug button { padding:16px 6px; font-size:15px; font-weight:700; border:2px solid var(--borde); border-radius:10px; background:#fff; color:#202124; }
+  #cajasSug button.activo { border-color:var(--verde); background:#e6f4ea; color:var(--verde); }
+  #cajaOtra { width:100%; font-size:16px; padding:12px; border-radius:8px; border:1px solid var(--borde); background:#fff; }
+  #cajaOtra.activo { border:2px solid var(--verde); color:var(--verde); font-weight:700; }
+  .cajas .check { margin:8px 0 0; }
   .tabs { display:flex; gap:8px; margin-top:12px; }
   .tabs button { flex:1; font-size:18px; font-weight:700; padding:16px 8px; border-radius:10px; border:2px solid var(--borde);
                  background:#fff; color:#202124; }
@@ -114,6 +121,12 @@
     <p class="ayuda" id="ayuda"></p>
     <div class="fotos" id="fotos"></div>
     <div id="checks"></div>
+    <div id="cajas" class="cajas" style="display:none">
+      <b>📦 Caja</b> <span class="nota" id="cajaFam"></span>
+      <div id="cajasSug"></div>
+      <select id="cajaOtra"><option value="">Otra caja…</option></select>
+      <label class="check" id="paletLbl" style="display:none"><input type="checkbox" id="palet">También va en palé</label>
+    </div>
     <textarea id="obs" placeholder="Observaciones (opcional)" style="display:none"></textarea>
   </div>
 </main>
@@ -129,6 +142,7 @@
      Tras enviar, la página queda lista para el siguiente paquete sin salir.
    - recogida: foto de la hoja de control firmada (acceso directo sin parámetros, el de siempre). */
 var P = '', MODO = 'recogida', fotos = [], operario = '', enviando = false, siguiente = 0;
+var CAJA = { p: null, c: '', palet: false, info: null };   // caja del paquete (20-11): cierra la fila del Sheet de packaging
 // Diagnóstico (6-11): tiempos de cada foto y si el móvil cerró la página al abrir la cámara. Viaja con el aviso.
 var diag = { fotos: [], recargas: 0, errores: [], ua: navigator.userAgent.slice(0, 120) };
 function apuntaError(t) { if (diag.errores.length < 10) diag.errores.push(t); }
@@ -300,6 +314,7 @@ function cabecera() {
   $('cod').textContent = m ? m[1] + ' · ' + m[2] : 'Se leerá de la etiqueta';
   $('cod').className = m ? 'cod' : 'cod vacio';
   $('otro').style.display = m ? '' : 'none';
+  if (CAJA.p !== P) { CAJA = { p: P, c: '', palet: false, info: null }; cargarCajas(); }   // otro paquete: su caja
 }
 
 // «✕ otro paquete»: deja la página como nueva (quita el pedido de arriba y las fotos sin enviar)
@@ -522,6 +537,44 @@ function pintar() {
   }
 }
 
+// ------------------------------------------------------------------ caja (20-11)
+// Arriba, las cajas habituales para esa pieza (predictor de la conversación de packaging) + «Reaprofitada»; el resto en el
+// desplegable (solo las que hay en stock, de Database!A2:A36). Obligatoria para enviar. «También va en palé» = 2.ª caja PALET.
+function cargarCajas() {
+  var cod = P;
+  if (MODO !== 'paquete' || !cod) { $('cajas').style.display = 'none'; return; }
+  $('cajas').style.display = '';
+  $('cajaFam').textContent = 'cargando…';
+  google.script.run
+    .withSuccessHandler(function (info) { if (P !== cod) return; CAJA.info = info || { sugeridas: [], disponibles: [] }; pintarCajas(); })
+    .withFailureHandler(function () { if (P !== cod) return; CAJA.info = { sugeridas: ['REAPROFITADA'], disponibles: [] }; pintarCajas(); })
+    .cajasPara(cod);
+}
+function pintarCajas() {
+  var info = CAJA.info || { sugeridas: [], disponibles: [] }, sug = info.sugeridas || [];
+  $('cajaFam').textContent = info.familia ? '· las habituales para ' + info.familia.toLowerCase() : '';
+  var s = $('cajasSug'); s.innerHTML = '';
+  sug.forEach(function (c) {
+    var b = document.createElement('button'); b.type = 'button';
+    b.textContent = c === 'REAPROFITADA' ? '♻️ Reaprofitada' : c;
+    b.className = CAJA.c === c ? 'activo' : '';
+    b.onclick = function () { elegirCaja(c); };
+    s.appendChild(b);
+  });
+  var sel = $('cajaOtra'), otra = CAJA.c && sug.indexOf(CAJA.c) < 0;
+  sel.innerHTML = '<option value="">' + (sug.length ? 'Otra caja…' : 'Elige la caja…') + '</option>';
+  (info.disponibles || []).forEach(function (c) {
+    if (sug.indexOf(c) >= 0) return;
+    var o = document.createElement('option'); o.value = c; o.textContent = c; o.selected = CAJA.c === c; sel.appendChild(o);
+  });
+  sel.className = otra ? 'activo' : '';
+  $('paletLbl').style.display = CAJA.c && CAJA.c !== 'PALET' ? '' : 'none';
+  $('palet').checked = CAJA.palet;
+}
+function elegirCaja(c) { CAJA.c = c; if (c === 'PALET' || !c) CAJA.palet = false; pintarCajas(); }
+$('cajaOtra').onchange = function () { elegirCaja(this.value); };
+$('palet').onchange = function () { CAJA.palet = this.checked; };
+
 // ------------------------------------------------------------------ entrega al transportista (20-11)
 // Pestaña «Entrega»: se escanean los paquetes que se entregan (o se escribe el nº de pedido), se elige si la foto es del
 // albarán de entrega o de la hoja de control firmada, y observaciones si hace falta. Cada tarjeta queda «Entregat
@@ -535,6 +588,7 @@ function ponerModo(m) {
   $('tabPaq').className = ent ? '' : 'activo';
   $('tabEnt').className = ent ? 'activo' : '';
   $('entrega').style.display = ent ? '' : 'none';
+  if (ent) $('cajas').style.display = 'none'; else CAJA.p = null;   // al volver a Paquete se recargan las cajas
   $('obs').style.display = ent ? '' : 'none';
   $('checks').style.display = !ent && !esJosepMaria() ? '' : 'none';
   $('btnEscanear').firstChild.textContent = ent ? '▣ Escanear paquete' : '▣ Escanear etiqueta';
@@ -577,6 +631,11 @@ $('enviar').onclick = function () {
   document.querySelectorAll('#checks input').forEach(function (i) { checks[i.dataset.k] = i.checked; });
   if (MODO === 'paquete' && esJosepMaria()) checks = { estado: true, referencia: true };
   // Sin las dos casillas no se envía (Bernat, 27-10)
+  if (MODO === 'paquete' && P && !CAJA.c) {   // 20-11: la caja es obligatoria (si no hay, «Reaprofitada»)
+    msg('Elige la caja (si no hay ninguna, «Reaprofitada»).', true);
+    $('cajas').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   if (MODO === 'paquete' && !(checks.estado && checks.referencia)) {
     alert('Marca las dos casillas (estado y referencia) antes de enviar.');
     $('checks').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -594,7 +653,8 @@ function seguirEnvio() {
   if (faltan) { msg('Terminando de subir ' + faltan + ' foto(s)…'); return; }
   var checks = enviando.checks, pedido = P;
   var ids = fotos.map(function (f) { return f.id; });
-  var datos = { modo: MODO, p: pedido, operario: operario, checks: checks, ids: ids, diag: diag };
+  var datos = { modo: MODO, p: pedido, operario: operario, checks: checks, ids: ids, diag: diag,
+                caja: CAJA.c, caja2: CAJA.palet && CAJA.c && CAJA.c !== 'PALET' ? 'PALET' : '' };
   if (MODO === 'entrega') {
     // hoja de control sin paquetes escaneados = la recogida de siempre (el servidor lee los QR de la foto)
     datos = ENTREGA.codigos.length
