@@ -70,6 +70,13 @@
   #cajaOtra { width:100%; font-size:16px; padding:12px; border-radius:8px; border:1px solid var(--borde); background:#fff; }
   #cajaOtra.activo { border:2px solid var(--verde); color:var(--verde); font-weight:700; }
   .cajas .check { margin:8px 0 0; }
+  #visor { position:fixed; inset:0; background:#000; z-index:50; flex-direction:column; align-items:center; justify-content:center; }
+  #visorVideo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #visor .marco { position:relative; width:68vw; height:68vw; max-width:340px; max-height:340px; border:4px solid #fff; border-radius:18px;
+                  box-shadow:0 0 0 2000px rgba(0,0,0,.35); }
+  #visorMsg { position:relative; color:#fff; font-size:19px; font-weight:700; margin-top:20px; text-align:center; text-shadow:0 1px 3px #000; }
+  #visorCancelar { position:absolute; bottom:calc(36px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); font-size:18px;
+                   padding:14px 34px; border-radius:12px; border:0; background:#fff; color:#202124; font-weight:700; }
   .tabs { display:flex; gap:8px; margin-top:12px; }
   .tabs button { flex:1; font-size:18px; font-weight:700; padding:16px 8px; border-radius:10px; border:2px solid var(--borde);
                  background:#fff; color:#202124; }
@@ -130,6 +137,12 @@
     <textarea id="obs" placeholder="Observaciones (opcional)" style="display:none"></textarea>
   </div>
 </main>
+<div id="visor" style="display:none">
+  <video id="visorVideo" playsinline muted autoplay></video>
+  <div class="marco"></div>
+  <div id="visorMsg"></div>
+  <button id="visorCancelar" type="button">Cancelar</button>
+</div>
 <footer id="pie" style="display:none">
   <button id="enviar" disabled>Enviar</button>
   <div id="msg" class="msg"></div>
@@ -421,9 +434,79 @@ $('camara').onchange = $('galeria').onchange = function (ev) {
   if (lista.length) anadir(lista, origen);
 };
 // Si el móvil cierra la página mientras la cámara está abierta, al volver se sabe y se recupera el pedido (ver arranque)
-$('camara').onclick = $('escaner').onclick = function () { camaraAbierta({ t: Date.now(), p: P }); };
+$('camara').onclick = function () { camaraAbierta({ t: Date.now(), p: P }); };
 
-// «Escanear etiqueta»: foto de cerca solo para leer el QR (no se guarda)
+// «Escanear etiqueta» (20-11, Carme y Manel: «no funciona bien»): en la app instalada, cámara EN VIVO que lee el QR sola
+// en cuanto lo ve (como un lector de QR). Antes era una foto y luego buscar el QR en ella: si salía movida o lejos, a
+// repetir. En la versión de Google (va dentro de un marco que no deja la cámara en vivo) o si el móvil no la da: la foto.
+var VISOR = null, VISOR_NO = false;
+function enVivoOK() {
+  try { return !VISOR_NO && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.self === window.top; }
+  catch (e) { return false; }
+}
+$('escaner').onclick = function (ev) {
+  if (enVivoOK()) { ev.preventDefault(); abrirVisor(); return; }
+  camaraAbierta({ t: Date.now(), p: P });
+};
+function abrirVisor() {
+  var v = $('visorVideo'), t0 = Date.now(), det = null;
+  try { if ('BarcodeDetector' in window) det = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { det = null; }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+    .then(function (st) {
+      VISOR = { st: st, on: true };
+      v.setAttribute('playsinline', ''); v.muted = true; v.srcObject = st;
+      var pl = v.play(); if (pl && pl.catch) pl.catch(function () {});
+      $('visor').style.display = 'flex';
+      $('visorMsg').textContent = MODO === 'entrega' ? 'Apunta al QR del paquete' : 'Apunta al QR de la etiqueta pequeña';
+      var c = document.createElement('canvas'), ctx = c.getContext('2d', { willReadFrequently: true }), k = 0;
+      (function paso() {
+        if (!VISOR || !VISOR.on) return;
+        if (Date.now() - t0 > 30000) {
+          apuntaError('escáner en vivo: 30 s sin leer');
+          cerrarVisor(); msg('No lo leo. Acércate más (un palmo) o usa «Escribir nº de pedido».', true); return;
+        }
+        if (v.readyState >= 2 && v.videoWidth) {
+          var vw = v.videoWidth, vh = v.videoHeight;
+          if (k++ % 2) {   // un fotograma de cada dos: el centro (donde está el recuadro) sin reducir, para el QR de más lejos
+            var cw = Math.round(vw * 0.55), ch = Math.round(vh * 0.55);
+            c.width = cw; c.height = ch;
+            ctx.drawImage(v, Math.round((vw - cw) / 2), Math.round((vh - ch) / 2), cw, ch, 0, 0, cw, ch);
+          } else {
+            var sc = Math.min(1, 1080 / Math.max(vw, vh));
+            c.width = Math.round(vw * sc); c.height = Math.round(vh * sc);
+            ctx.drawImage(v, 0, 0, c.width, c.height);
+          }
+          if (det) {
+            det.detect(c).then(function (r) {
+              var cod = r && r.length && codigoDe(r[0].rawValue);
+              if (cod) leidoEnVivo(cod); else setTimeout(paso, 100);
+            }).catch(function () { det = null; setTimeout(paso, 100); });
+            return;
+          }
+          var d = ctx.getImageData(0, 0, c.width, c.height);
+          var res = jsQR(d.data, c.width, c.height, { inversionAttempts: 'dontInvert' }), cod = res && codigoDe(res.data);
+          if (cod) { leidoEnVivo(cod); return; }
+        }
+        setTimeout(paso, 120);
+      })();
+    })
+    .catch(function (e) {   // sin permiso de cámara o el móvil no la da en vivo: a partir de ahora, con foto
+      apuntaError('cámara en vivo: ' + String(e && e.name || e).slice(0, 60));
+      VISOR_NO = true;
+      msg('Pulsa otra vez «Escanear» y haz una foto de cerca de la etiqueta.', true);
+    });
+}
+function leidoEnVivo(cod) {
+  try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
+  cerrarVisor(); trasEscanear(cod);
+}
+function cerrarVisor() {
+  if (VISOR) { VISOR.on = false; try { VISOR.st.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} VISOR = null; }
+  $('visor').style.display = 'none'; $('visorVideo').srcObject = null;
+}
+$('visorCancelar').onclick = function () { cerrarVisor(); msg(''); };
+
+// «Escanear etiqueta» con foto (versión de Google o móvil sin cámara en vivo): foto de cerca solo para leer el QR
 $('escaner').onchange = function (ev) {
   var f = ev.target.files && ev.target.files[0]; ev.target.value = '';
   camaraAbierta(null);
@@ -434,6 +517,13 @@ $('escaner').onchange = function (ev) {
     if (img && !cod) apuntaError('etiqueta sin leer');
     if (img) URL.revokeObjectURL(img.src);
     if (!cod) { msg('No se lee el QR. Acerca más el móvil a la etiqueta de control.', true); return; }
+    trasEscanear(cod);
+  });
+};
+
+// Qué hacer con un QR leído (en vivo o con foto)
+function trasEscanear(cod) {
+  {
     if (MODO === 'entrega') { anadirEntrega(cod); return; }
     var num = cod.split('-')[0];
     if (P && cod !== P && fotos.length) {   // 20-11: otro paquete → el de ahora queda «a medias», sin preguntar ni borrar
@@ -447,8 +537,8 @@ $('escaner').onchange = function (ev) {
     fijarPedido(cod);
     // que se vea que ha leído la etiqueta (antes solo cambiaba el número de arriba y parecía que no hacía nada, 29-10)
     msg('✔ Etiqueta leída: pedido ' + num + (enviados[num] ? '. Ya lo enviaste antes: las fotos nuevas se añaden.' : '. Ahora las fotos.'));
-  });
-};
+  }
+}
 var enviados = {};   // pedidos enviados desde este móvil en esta sesión (solo para el aviso)
 
 // «Escribir nº de pedido» (20-11): por si la etiqueta ya no se puede escanear. Busca en Trello las piezas de ese pedido.
