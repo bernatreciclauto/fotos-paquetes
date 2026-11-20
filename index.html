@@ -63,6 +63,13 @@
   .medias button, #piezas button { display:block; width:100%; text-align:left; margin-top:8px; padding:12px; font-size:16px;
            background:#fff; color:#202124; border:1px solid var(--borde); border-radius:8px; }
   .sec.ancho { width:100%; margin-top:8px; }
+  .tabs { display:flex; gap:8px; margin-top:12px; }
+  .tabs button { flex:1; font-size:18px; font-weight:700; padding:16px 8px; border-radius:10px; border:2px solid var(--borde);
+                 background:#fff; color:#202124; }
+  .tabs button.activo { border-color:var(--azul); background:#e8f0fe; color:var(--azul); }
+  .tabs.pequeno button { font-size:15px; padding:12px 6px; }
+  #entLista button { display:flex; justify-content:space-between; }
+  #obs { width:100%; min-height:70px; font-size:16px; padding:12px; border:1px solid var(--borde); border-radius:10px; margin-top:8px; font-family:inherit; }
   .icono button { margin-top:10px; width:100%; font-size:16px; padding:12px; border:0; border-radius:8px; background:var(--azul); color:#fff; font-weight:700; }
 </style>
 </head>
@@ -86,7 +93,12 @@
   <div id="app" style="display:none">
     <!-- En Botiga todos usan el mismo móvil: que se vea quién está y se pueda cambiar con un toque (Bernat, 29-10) -->
     <div class="op"><span>👤 Haciendo paquetes:<br><b id="opNombre"></b></span><button id="opCambiar">Cambiar de operario</button></div>
+    <div class="tabs" id="tabs"><button type="button" id="tabPaq">📦 Paquete</button><button type="button" id="tabEnt">🚚 Entrega</button></div>
     <div id="medias" class="medias" style="display:none"></div>
+    <div id="entrega" style="display:none">
+      <div class="tabs pequeno"><button type="button" id="tAlb">Albarán de entrega</button><button type="button" id="tCtl">Hoja de control</button></div>
+      <div id="entLista" class="medias"></div>
+    </div>
     <label class="subir">📷 Hacer foto<input id="camara" type="file" accept="image/*" capture="environment"></label>
     <div class="fila">
       <label class="sec">🖼 Galería<input id="galeria" type="file" accept="image/*" multiple></label>
@@ -102,6 +114,7 @@
     <p class="ayuda" id="ayuda"></p>
     <div class="fotos" id="fotos"></div>
     <div id="checks"></div>
+    <textarea id="obs" placeholder="Observaciones (opcional)" style="display:none"></textarea>
   </div>
 </main>
 <footer id="pie" style="display:none">
@@ -274,8 +287,12 @@ function codigoDe(texto) {  // de la URL del QR saca «pedido-pieza.firma»
 }
 
 function cabecera() {
-  if (MODO === 'recogida') {
-    $('sub').textContent = 'Cuando pasa el transportista'; $('cod').textContent = 'Recogida'; $('cod').className = 'cod';
+  if (MODO === 'entrega') {
+    var n = ENTREGA.codigos.length;
+    $('sub').textContent = 'Entrega al transportista · ' + (ENTREGA.tipo === 'albaran' ? 'albarán' : 'hoja de control');
+    $('cod').textContent = n ? n + ' paquete' + (n > 1 ? 's' : '') : 'Escanea los paquetes';
+    $('cod').className = n ? 'cod' : 'cod vacio';
+    $('otro').style.display = 'none';
     return;
   }
   var m = P.match(/^(\d+)-(\d+)\./);
@@ -330,10 +347,10 @@ function abrirImagen(file, cb) {
 
 // Reduce la foto para subirla rápido (paquete 1280 px / 0,75: ~200-450 KB; la hoja de recogida, más grande para sus QR)
 function reducida(img) {
-  var max = MODO === 'recogida' ? 2600 : 1280, w = img.naturalWidth, h = img.naturalHeight, r = Math.min(1, max / Math.max(w, h));
+  var max = MODO !== 'paquete' ? 2600 : 1280, w = img.naturalWidth, h = img.naturalHeight, r = Math.min(1, max / Math.max(w, h));
   var c = document.createElement('canvas'); c.width = Math.round(w * r); c.height = Math.round(h * r);
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', MODO === 'recogida' ? 0.85 : 0.75);
+  return c.toDataURL('image/jpeg', MODO !== 'paquete' ? 0.85 : 0.75);
 }
 
 // ------------------------------------------------------------------ fotos
@@ -402,6 +419,7 @@ $('escaner').onchange = function (ev) {
     if (img && !cod) apuntaError('etiqueta sin leer');
     if (img) URL.revokeObjectURL(img.src);
     if (!cod) { msg('No se lee el QR. Acerca más el móvil a la etiqueta de control.', true); return; }
+    if (MODO === 'entrega') { anadirEntrega(cod); return; }
     var num = cod.split('-')[0];
     if (P && cod !== P && fotos.length) {   // 20-11: otro paquete → el de ahora queda «a medias», sin preguntar ni borrar
       if (!subidas()) return;
@@ -446,6 +464,7 @@ $('buscarPedido').onclick = function () {
 };
 function elegirManual(cod) {
   $('manual').style.display = 'none'; $('numPedido').value = ''; $('piezas').innerHTML = '';
+  if (MODO === 'entrega') { anadirEntrega(cod); return; }
   var num = cod.split('-')[0];
   if (P && cod !== P && fotos.length) {
     if (!subidas()) return;
@@ -472,7 +491,7 @@ function subir(foto, intento) {
       foto.estado = 'error'; pintar();
       if (enviando) { enviando = false; pintar(); msg('Una foto no ha subido (' + String(e && e.message || e).replace(/^Error:\s*/, '') + '). Vuelve a pulsar Enviar.', true); }
     })
-    .subirFoto({ modo: MODO, p: P, foto: foto.url });
+    .subirFoto({ modo: MODO === 'paquete' ? 'paquete' : 'recogida', p: P, foto: foto.url });
 }
 
 var MARCA = { preparando: '…', subiendo: '↑', ok: '✓', error: '✗' };
@@ -485,7 +504,13 @@ function pintar() {
     c.appendChild(d);
   });
   var listas = fotos.length && fotos.every(function (f) { return f.url && !f.leyendo; });
-  $('enviar').disabled = !fotos.length || !!enviando || (MODO === 'paquete' && !P);
+  $('enviar').disabled = !fotos.length || !!enviando || (MODO === 'paquete' && !P) ||
+    (MODO === 'entrega' && ENTREGA.tipo === 'albaran' && !ENTREGA.codigos.length);
+  if (MODO === 'entrega') {
+    $('ayuda').textContent = ENTREGA.tipo === 'albaran'
+      ? 'Escanea cada paquete que se lleva el transportista y haz la foto del albarán de entrega.'
+      : 'Foto de la hoja de control firmada. Si escaneas los paquetes, se marcan seguro; si no, se leen de la foto.';
+  }
   if (MODO === 'paquete') {
     // La etiqueta de control va en la hoja de control, no en la caja (25-10): lo normal es escanearla de cerca.
     // Si sale en alguna foto (a menos de ~50 cm), el pedido también se lee solo.
@@ -495,6 +520,54 @@ function pintar() {
     else if (!P && listas && !enviando) msg('Falta el pedido: pulsa «Escanear etiqueta» y acerca el móvil a la etiqueta de control.', true);
     else if (P && !enviando && /la etiqueta/.test($('msg').textContent)) msg('');
   }
+}
+
+// ------------------------------------------------------------------ entrega al transportista (20-11)
+// Pestaña «Entrega»: se escanean los paquetes que se entregan (o se escribe el nº de pedido), se elige si la foto es del
+// albarán de entrega o de la hoja de control firmada, y observaciones si hace falta. Cada tarjeta queda «Entregat
+// (transportista)» con la foto. Hoja de control sin escanear nada = como antes: el servidor lee los QR de la foto.
+var ENTREGA = { tipo: 'albaran', codigos: [] };
+
+function ponerModo(m) {
+  if (fotos.length && m !== MODO) { msg('Envía o quita las fotos de ahora antes de cambiar.', true); return; }
+  MODO = m;
+  var ent = m === 'entrega';
+  $('tabPaq').className = ent ? '' : 'activo';
+  $('tabEnt').className = ent ? 'activo' : '';
+  $('entrega').style.display = ent ? '' : 'none';
+  $('obs').style.display = ent ? '' : 'none';
+  $('checks').style.display = !ent && !esJosepMaria() ? '' : 'none';
+  $('btnEscanear').firstChild.textContent = ent ? '▣ Escanear paquete' : '▣ Escanear etiqueta';
+  $('enviar').textContent = ent ? 'Enviar · entregado' : 'Enviar · siguiente paquete';
+  try { localStorage.setItem('modo', m); } catch (e) {}
+  pintarEntrega(); pintarMedias(); cabecera(); pintar(); msg('');
+}
+$('tabPaq').onclick = function () { if (!enviando) { P = ''; ponerModo('paquete'); recuperarPendiente(); } };
+$('tabEnt').onclick = function () { if (!enviando) ponerModo('entrega'); };
+$('tAlb').onclick = function () { ENTREGA.tipo = 'albaran'; pintarEntrega(); cabecera(); pintar(); };
+$('tCtl').onclick = function () { ENTREGA.tipo = 'control'; pintarEntrega(); cabecera(); pintar(); };
+
+function anadirEntrega(cod) {
+  var num = cod.split('-')[0];
+  if (ENTREGA.codigos.indexOf(cod) >= 0) { msg('El pedido ' + num + ' ya está en la lista.'); return; }
+  ENTREGA.codigos.push(cod);
+  pintarEntrega(); cabecera(); pintar();
+  msg('✔ Pedido ' + num + ' añadido. Escanea más o haz la foto.');
+}
+
+function pintarEntrega() {
+  $('tAlb').className = ENTREGA.tipo === 'albaran' ? 'activo' : '';
+  $('tCtl').className = ENTREGA.tipo === 'control' ? 'activo' : '';
+  var c = $('entLista');
+  c.style.display = MODO === 'entrega' && ENTREGA.codigos.length ? '' : 'none';
+  c.innerHTML = '<b>🚚 Paquetes que se entregan (' + ENTREGA.codigos.length + ')</b>';
+  ENTREGA.codigos.forEach(function (k) {
+    var r = k.split('.')[0].split('-'), b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<span><b>Pedido ' + r[0] + '</b> · pieza ' + r[1] + '</span><span>✕</span>';
+    b.onclick = function () { if (enviando) return; ENTREGA.codigos.splice(ENTREGA.codigos.indexOf(k), 1); pintarEntrega(); cabecera(); pintar(); };
+    c.appendChild(b);
+  });
 }
 
 // ------------------------------------------------------------------ enviar
@@ -520,9 +593,24 @@ function seguirEnvio() {
   var faltan = fotos.filter(function (f) { return f.estado !== 'ok'; }).length;
   if (faltan) { msg('Terminando de subir ' + faltan + ' foto(s)…'); return; }
   var checks = enviando.checks, pedido = P;
+  var ids = fotos.map(function (f) { return f.id; });
+  var datos = { modo: MODO, p: pedido, operario: operario, checks: checks, ids: ids, diag: diag };
+  if (MODO === 'entrega') {
+    // hoja de control sin paquetes escaneados = la recogida de siempre (el servidor lee los QR de la foto)
+    datos = ENTREGA.codigos.length
+      ? { modo: 'entrega', tipo: ENTREGA.tipo, codigos: ENTREGA.codigos.slice(), obs: $('obs').value.trim().slice(0, 500), operario: operario, ids: ids, diag: diag }
+      : { modo: 'recogida', operario: operario, ids: ids, obs: $('obs').value.trim().slice(0, 500), diag: diag };
+  }
   msg('Enviando…');
   google.script.run
     .withSuccessHandler(function (r) {
+      if (MODO === 'entrega') {
+        var n = ENTREGA.codigos.length;
+        enviando = false; fotos = []; ENTREGA.codigos = []; $('obs').value = ''; diag.fotos = []; diag.errores = [];
+        pintarEntrega(); cabecera(); pintar();
+        msg('✔ ' + (n ? n + ' paquete(s) entregados' : 'Hoja de control enviada') + ' con ' + r.fotos + ' foto(s). Ya está.');
+        return;
+      }
       enviando = false; fotos = []; diag.fotos = []; diag.errores = []; diag.recargas = 0;
       if (MODO === 'paquete') quitarMedia(pedido);   // enviado: sale de «Paquetes a medias»
       if (MODO === 'paquete') enviados[pedido.split('-')[0]] = true;
@@ -533,7 +621,7 @@ function seguirEnvio() {
           (MODO === 'paquete' ? ' Siguiente paquete.' : ' Ya está.'));
     })
     .withFailureHandler(function (e) { enviando = false; pintar(); msg('Error: ' + String(e && e.message || e).replace(/^Error:\s*/, '') + ' Vuelve a pulsar Enviar.', true); })
-    .guardar({ modo: MODO, p: pedido, operario: operario, checks: checks, ids: fotos.map(function (f) { return f.id; }), diag: diag });
+    .guardar(datos);
 }
 
 // ------------------------------------------------------------------ arranque
@@ -541,18 +629,16 @@ function seguirEnvio() {
 google.script.url.getLocation(function (loc) {
   var par = loc.parameter || {};
   var cod = codigoDe(par.p);
+  $('checks').innerHTML =
+    '<label class="check"><input type="checkbox" data-k="estado">He comprobado el estado de la pieza</label>' +
+    '<label class="check"><input type="checkbox" data-k="referencia">He comprobado la referencia / compatibilidad</label>';
   if (cod || par.m === 'p') {
-    MODO = 'paquete'; P = cod; ACCESO = !cod && par.m === 'p';
-    $('enviar').textContent = 'Enviar · siguiente paquete';
-    $('checks').innerHTML =
-      '<label class="check"><input type="checkbox" data-k="estado">He comprobado el estado de la pieza</label>' +
-      '<label class="check"><input type="checkbox" data-k="referencia">He comprobado la referencia / compatibilidad</label>';
+    P = cod; ACCESO = !cod && par.m === 'p';
+    ponerModo('paquete');
   } else {
-    MODO = 'recogida';
-    $('btnEscanear').style.display = 'none';
-    $('btnManual').style.display = 'none';
-    $('ayuda').textContent = 'Una foto de la hoja de control firmada, con los justificantes de B-Parts y Recambio Fácil.';
-    $('enviar').textContent = 'Enviar justificantes';
+    // el acceso directo de siempre de «Recogida» (sin parámetros): abre en «Entrega», con la hoja de control
+    ENTREGA.tipo = 'control';
+    ponerModo('entrega');
   }
   // la página se reinició con la cámara abierta: el móvil la cerró por falta de memoria y esa foto se ha perdido
   try {
