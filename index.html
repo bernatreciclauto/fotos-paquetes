@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Fotos paquetes</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#202124">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Paquetes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<script src="gs.js"></script>
+<meta charset="utf-8">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<style>
+  :root { --verde:#1e8e3e; --azul:#1a73e8; --gris:#5f6368; --borde:#dadce0; --fondo:#f8f9fa; --rojo:#c5221f; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system, Roboto, Arial, sans-serif; background:var(--fondo); color:#202124; }
+  header { background:#202124; color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:flex-end; }
+  header .cod { font-size:26px; font-weight:700; letter-spacing:.5px; }
+  header .cod.vacio { font-size:18px; font-weight:400; opacity:.75; }
+  header .sub { font-size:13px; opacity:.8; }
+  header .quien { font-size:13px; opacity:.85; text-align:right; }
+  header .quien a, header #otro { color:#8ab4f8; }
+  header #otro { display:inline-block; font-size:14px; margin-top:6px; }
+  main { padding:12px 16px 130px; max-width:560px; margin:0 auto; }
+  .subir { display:block; text-align:center; background:var(--azul); color:#fff; border-radius:12px; padding:22px 16px;
+           font-size:20px; font-weight:700; margin:14px 0 8px; }
+  .fila { display:flex; gap:8px; }
+  .sec { flex:1; display:block; text-align:center; background:#fff; color:var(--azul); border:1px solid var(--azul); border-radius:10px;
+         padding:14px 8px; font-size:16px; font-weight:600; }
+  .ayuda { color:var(--gris); font-size:13px; text-align:center; margin:8px 0 0; }
+  input[type=file] { display:none; }
+  .fotos { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:12px 0; }
+  .fotos div { position:relative; aspect-ratio:1; border-radius:8px; background:#ddd center/cover; }
+  .fotos span { position:absolute; left:4px; top:4px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:2px 5px; border-radius:4px; }
+  .fotos b { position:absolute; right:4px; top:2px; color:#fff; font-size:22px; text-shadow:0 0 3px #000; }
+  .fotos i { position:absolute; left:4px; bottom:4px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; font-style:normal; padding:2px 5px; border-radius:4px; }
+  .check { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--borde);
+           border-radius:10px; padding:14px 12px; margin-bottom:6px; font-size:16px; }
+  .check input { width:26px; height:26px; flex:none; }
+  .nombre { background:#fff; border:1px solid var(--borde); border-radius:10px; padding:16px; margin-top:16px; }
+  .nombre input { width:100%; font-size:17px; padding:12px; border:1px solid var(--borde); border-radius:8px; margin:8px 0; }
+  .nombre button { width:100%; font-size:16px; padding:12px; border:0; border-radius:8px; background:var(--azul); color:#fff; font-weight:700; }
+  #personas button { display:block; margin:8px 0; padding:16px; font-size:18px; background:#fff; color:#202124; border:1px solid var(--borde); }
+  .op { display:flex; align-items:center; justify-content:space-between; gap:10px; background:#fff; border:1px solid var(--borde);
+        border-radius:10px; padding:10px 12px; margin-top:12px; font-size:16px; }
+  .op b { font-size:19px; }
+  .op button { flex:none; font-size:15px; font-weight:700; padding:12px 14px; border:1px solid var(--azul); border-radius:8px;
+               background:#fff; color:var(--azul); }
+  #nombre { margin-top:14px; }
+  footer { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--borde); padding:12px 16px; }
+  footer button { width:100%; max-width:560px; display:block; margin:0 auto; font-size:18px; font-weight:700;
+                  padding:16px; border:0; border-radius:10px; background:var(--verde); color:#fff; }
+  footer button:disabled { background:#bdc1c6; }
+  .msg { text-align:center; font-size:14px; margin-top:8px; min-height:18px; }
+  .ok { color:var(--verde); } .err { color:var(--rojo); }
+  .nota { color:var(--gris); font-size:13px; }
+  .icono { background:#e8f0fe; border:1px solid #aecbfa; border-radius:10px; padding:14px; margin-top:12px; font-size:16px; line-height:1.4; }
+  .medias { background:#fef7e0; border:1px solid #f9ab00; border-radius:10px; padding:12px; margin-top:12px; font-size:16px; }
+  .medias button, #piezas button { display:block; width:100%; text-align:left; margin-top:8px; padding:12px; font-size:16px;
+           background:#fff; color:#202124; border:1px solid var(--borde); border-radius:8px; }
+  .sec.ancho { width:100%; margin-top:8px; }
+  .icono button { margin-top:10px; width:100%; font-size:16px; padding:12px; border:0; border-radius:8px; background:var(--azul); color:#fff; font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <div><div class="sub" id="sub"></div><div class="cod" id="cod"></div><a href="#" id="otro" style="display:none">✕ otro paquete</a></div>
+  <div class="quien" id="quien"></div>
+</header>
+<main>
+  <div id="pedirNombre" class="nombre" style="display:none">
+    <b>¿Quién eres?</b> <span class="nota">El móvil lo recordará.</span>
+    <div id="personas"></div>
+    <input id="nombre" placeholder="Otro nombre" autocomplete="name">
+    <button id="guardarNombre">Guardar</button>
+  </div>
+  <div id="icono" class="icono" style="display:none">
+    <b>Pon «Paquetes» en la pantalla de inicio</b><br>
+    <span id="iconoPasos"></span>
+    <button id="iconoHecho">Ya está</button>
+  </div>
+  <div id="app" style="display:none">
+    <!-- En Botiga todos usan el mismo móvil: que se vea quién está y se pueda cambiar con un toque (Bernat, 29-10) -->
+    <div class="op"><span>👤 Haciendo paquetes:<br><b id="opNombre"></b></span><button id="opCambiar">Cambiar de operario</button></div>
+    <div id="medias" class="medias" style="display:none"></div>
+    <label class="subir">📷 Hacer foto<input id="camara" type="file" accept="image/*" capture="environment"></label>
+    <div class="fila">
+      <label class="sec">🖼 Galería<input id="galeria" type="file" accept="image/*" multiple></label>
+      <label class="sec" id="btnEscanear">▣ Escanear etiqueta<input id="escaner" type="file" accept="image/*" capture="environment"></label>
+    </div>
+    <button class="sec ancho" id="btnManual" type="button">⌨️ Escribir nº de pedido</button>
+    <div id="manual" class="nombre" style="display:none">
+      <b>Número de pedido</b> <span class="nota">El de la etiqueta o la tarjeta.</span>
+      <input id="numPedido" inputmode="numeric" placeholder="Ej. 18571" autocomplete="off">
+      <button id="buscarPedido" type="button">Buscar</button>
+      <div id="piezas"></div>
+    </div>
+    <p class="ayuda" id="ayuda"></p>
+    <div class="fotos" id="fotos"></div>
+    <div id="checks"></div>
+  </div>
+</main>
+<footer id="pie" style="display:none">
+  <button id="enviar" disabled>Enviar</button>
+  <div id="msg" class="msg"></div>
+</footer>
+
+<script>
+/* Modos:
+   - paquete: fotos de un paquete. El pedido sale del QR de la etiqueta de control: del enlace (si se ha escaneado con
+     la cámara del móvil), de las propias fotos (se lee en el móvil al momento) o del botón «Escanear etiqueta».
+     Tras enviar, la página queda lista para el siguiente paquete sin salir.
+   - recogida: foto de la hoja de control firmada (acceso directo sin parámetros, el de siempre). */
+var P = '', MODO = 'recogida', fotos = [], operario = '', enviando = false, siguiente = 0;
+// Diagnóstico (6-11): tiempos de cada foto y si el móvil cerró la página al abrir la cámara. Viaja con el aviso.
+var diag = { fotos: [], recargas: 0, errores: [], ua: navigator.userAgent.slice(0, 120) };
+function apuntaError(t) { if (diag.errores.length < 10) diag.errores.push(t); }
+function camaraAbierta(v) { try { if (v) localStorage.setItem('camaraAbierta', JSON.stringify(v)); else localStorage.removeItem('camaraAbierta'); } catch (e) {} }
+// ------------------------------------------------------------------ paquetes a medias (20-11, Carme y Bernat)
+// Cada paquete con fotos subidas sin «Enviar» se apunta en el móvil (localStorage «medias»: {código: {ids, op, t}}) y se
+// puede retomar todo el día desde la lista «Paquetes a medias», aunque se cierre la página o se escanee otra etiqueta
+// (la cámara del iPhone abre otra pestaña). Al retomar, se pregunta al servidor cuáles ya llegaron a la tarjeta: el flujo
+// «Fotos paquetes · huérfanas» manda solas las que llevan 30 min sin enviar, y no se mandan dos veces.
+function leerMedias() {
+  var hoy = new Date().toDateString(), out = {};
+  try {
+    var m = JSON.parse(localStorage.getItem('medias') || '{}');
+    var viejo = JSON.parse(localStorage.getItem('pendiente') || 'null');   // formato del 17-11 (un solo paquete)
+    if (viejo && viejo.p && !m[viejo.p]) m[viejo.p] = { ids: viejo.ids, op: viejo.op, t: viejo.t };
+    Object.keys(m).forEach(function (k) {
+      if (m[k] && m[k].ids && m[k].ids.length && new Date(m[k].t).toDateString() === hoy) out[k] = m[k];
+    });
+  } catch (e) {}
+  return out;
+}
+function guardarMedias(m) { try { localStorage.setItem('medias', JSON.stringify(m)); localStorage.removeItem('pendiente'); } catch (e) {} }
+function apuntarPendiente() {
+  if (MODO !== 'paquete' || !P) return;
+  var m = leerMedias(), ids = fotos.filter(function (f) { return f.id; }).map(function (f) { return f.id; });
+  if (ids.length) m[P] = { ids: ids, op: operario, t: (m[P] && m[P].t) || Date.now() };
+  else delete m[P];
+  guardarMedias(m); pintarMedias();
+}
+function quitarMedia(cod) { var m = leerMedias(); delete m[cod]; guardarMedias(m); pintarMedias(); }
+
+function pintarMedias() {
+  var caja = $('medias');
+  if (!caja) return;
+  var m = leerMedias(), otros = Object.keys(m).filter(function (k) { return k !== P; });
+  caja.style.display = MODO === 'paquete' && otros.length ? '' : 'none';
+  caja.innerHTML = '<b>📦 Paquetes a medias (' + otros.length + ')</b>';
+  otros.sort(function (a, b) { return m[b].t - m[a].t; }).forEach(function (k) {
+    var r = k.split('.')[0].split('-'), hora = new Date(m[k].t).toTimeString().slice(0, 5);
+    var b = document.createElement('button');
+    b.innerHTML = '<b>Pedido ' + r[0] + '</b> · pieza ' + r[1] + '<br><span class="nota">' + m[k].ids.length + ' foto(s) · ' + hora +
+      (m[k].op ? ' · ' + m[k].op : '') + '</span>';
+    b.onclick = function () { retomar(k); };
+    caja.appendChild(b);
+  });
+}
+
+// Con fotos aún subiendo no se cambia de paquete: al acabar de subir se borrarían por no estar en la lista
+function subidas() {
+  var faltan = fotos.filter(function (f) { return f.estado !== 'ok'; }).length;
+  if (faltan) msg('Espera a que acaben de subir ' + faltan + ' foto(s) y vuelve a probar.', true);
+  return !faltan;
+}
+
+// Pasa a otro paquete: las fotos del de ahora ya están apuntadas (se pueden retomar luego)
+function retomar(cod) {
+  if (enviando || !subidas()) return;
+  var m = leerMedias();
+  P = cod;
+  fotos = ((m[cod] && m[cod].ids) || []).map(function (id) { return { orden: siguiente++, id: id, estado: 'ok', url: null, d: { o: 'recuperada' } }; });
+  document.querySelectorAll('#checks input').forEach(function (i) { i.checked = false; });
+  cabecera(); pintar(); pintarMedias(); window.scrollTo(0, 0);
+  if (fotos.length) {
+    msg('Pedido ' + cod.split('-')[0] + ': ' + fotos.length + ' foto(s) de antes (sin miniatura). Haz las que falten y pulsa Enviar.');
+    comprobarEnviadas();
+  } else msg('✔ Pedido ' + cod.split('-')[0] + '. Ahora las fotos.');
+}
+
+// ¿Alguna ya llegó a la tarjeta (enviada en otro momento o por el flujo de las 30 min)? Esas no se vuelven a mandar.
+function comprobarEnviadas() {
+  var ids = fotos.filter(function (f) { return f.id; }).map(function (f) { return f.id; }), cod = P;
+  if (!ids.length) return;
+  google.script.run.withSuccessHandler(function (env) {
+    if (!env || !env.length || P !== cod) return;
+    fotos = fotos.filter(function (f) { return env.indexOf(f.id) < 0; });
+    apuntarPendiente(); pintar();
+    msg(env.length + ' foto(s) ya estaban en la tarjeta' + (fotos.length ? '; quedan ' + fotos.length + ' por enviar.' : '. Puedes hacer más o pasar al siguiente paquete.'));
+  }).yaEnviadas(ids);
+}
+
+// Al abrir la página
+function recuperarPendiente() {
+  if (MODO !== 'paquete') return;
+  var m = leerMedias(), ks = Object.keys(m);
+  if (P && m[P]) { retomar(P); return; }                 // el mismo paquete: vuelven sus fotos
+  if (!P && ks.length === 1) { retomar(ks[0]); return; }  // un solo paquete a medias y ninguno escaneado: directo
+  pintarMedias();                                          // si no, la lista para elegir
+}
+try { operario = localStorage.getItem('operario') || ''; } catch (e) {}
+
+function $(id) { return document.getElementById(id); }
+// Josep Maria no marca las comprobaciones de estado y referencia: se dan por hechas (Bernat, 27-10)
+function esJosepMaria() { return /^\s*(josep|jm\b)/i.test(operario); }
+function msg(t, err) { $('msg').textContent = t; $('msg').className = 'msg ' + (err ? 'err' : 'ok'); }
+
+// ------------------------------------------------------------------ quién hace los paquetes
+
+function mostrarQuien() {
+  $('opNombre').textContent = operario;
+}
+$('opCambiar').onclick = function () {
+  if (enviando) return;
+  operario = '';   // se pide el nombre otra vez; las fotos y el pedido de ahora se quedan
+  inicio();
+  window.scrollTo(0, 0);
+};
+
+function inicio() {
+  mostrarQuien();
+  $('checks').style.display = MODO === 'paquete' && !esJosepMaria() ? '' : 'none';
+  var pide = !operario;
+  $('pedirNombre').style.display = pide ? '' : 'none';
+  $('app').style.display = pide ? 'none' : '';
+  $('pie').style.display = pide ? 'none' : '';
+  avisoIcono(!pide);
+}
+
+// La primera vez en cada móvil, cómo dejar el icono en la pantalla de inicio (ninguna página puede crearlo sola).
+// Solo con el acceso directo de «Paquetes» (?m=p): con el QR de una etiqueta se guardaría el enlace de ese pedido.
+var ACCESO = false;
+function avisoIcono(ver) {
+  var hecho = false;
+  try { hecho = localStorage.getItem('iconoHecho') === '1'; } catch (e) {}
+  if (!ACCESO || hecho || !ver) { $('icono').style.display = 'none'; return; }
+  var ua = navigator.userAgent;
+  $('iconoPasos').innerHTML = /iPhone|iPad|iPod/.test(ua)
+    ? 'Toca <b>Compartir</b> (el cuadrado con la flecha ⬆️, abajo o arriba) › <b>Añadir a pantalla de inicio</b> › <b>Añadir</b>.'
+    : 'Toca el menú <b>⋮</b> (arriba a la derecha) › <b>Añadir a pantalla de inicio</b> › <b>Añadir</b>.';
+  $('icono').style.display = '';
+}
+$('iconoHecho').onclick = function () {
+  try { localStorage.setItem('iconoHecho', '1'); } catch (e) {}
+  $('icono').style.display = 'none';
+};
+
+// Si el móvil no recuerda a nadie (datos borrados, otro navegador), un toque en su nombre basta
+var PERSONAS = ['Josep Maria', 'Elim', 'Manel', 'Carme', 'Peter', 'Desballestament'];
+function elegir(n) {
+  operario = n; try { localStorage.setItem('operario', n); } catch (e) {}
+  inicio();
+}
+PERSONAS.forEach(function (n) {
+  var b = document.createElement('button'); b.textContent = n;
+  b.onclick = function () { elegir(n); };
+  $('personas').appendChild(b);
+});
+$('guardarNombre').onclick = function () {
+  var n = $('nombre').value.trim(); if (n) elegir(n);
+};
+
+// ------------------------------------------------------------------ el pedido (QR de la etiqueta de control)
+
+function codigoDe(texto) {  // de la URL del QR saca «pedido-pieza.firma»
+  var m = String(texto || '').match(/(\d{3,7}-\d{3,7}\.[0-9a-f]{10})/);
+  return m ? m[1] : '';
+}
+
+function cabecera() {
+  if (MODO === 'recogida') {
+    $('sub').textContent = 'Cuando pasa el transportista'; $('cod').textContent = 'Recogida'; $('cod').className = 'cod';
+    return;
+  }
+  var m = P.match(/^(\d+)-(\d+)\./);
+  $('sub').textContent = m ? 'Pedido · pieza' : 'Paquete nuevo';
+  $('cod').textContent = m ? m[1] + ' · ' + m[2] : 'Se leerá de la etiqueta';
+  $('cod').className = m ? 'cod' : 'cod vacio';
+  $('otro').style.display = m ? '' : 'none';
+}
+
+// «✕ otro paquete»: deja la página como nueva (quita el pedido de arriba y las fotos sin enviar)
+$('otro').onclick = function (e) {
+  e.preventDefault();
+  if (enviando) return;
+  if (fotos.length && !confirm('¿Empezar otro paquete? Se quitan las ' + fotos.length + ' foto(s) sin enviar.')) return;
+  fotos.slice().forEach(quitar);
+  P = ''; cabecera(); pintar(); msg('');
+};
+
+function fijarPedido(codigo) {
+  P = codigo; cabecera(); apuntarPendiente();
+  // las que se subieron antes de saber el pedido quedan en «sin etiqueta»; el aviso lleva sus ids, no hace falta moverlas
+  pintar();
+}
+
+// Lee el QR de una imagen (en el móvil, sin esperar al servidor). Probado con una caja simulada: a 2600 px se lee
+// hasta ~80 cm; a resolución completa (4000 px), hasta ~1 m. Pero de cerca (QR grande en la foto) jsQR solo lo lee
+// reducida: la foto de la etiqueta en pantalla se leía a 1280 px y no a 2600 ni a 4000 (27-10). Por eso se empieza por 1280.
+function leerQR(img, tams) {
+  if (typeof jsQR !== 'function') return '';
+  tams = tams || [1280, 2600, 4000];
+  for (var k = 0; k < tams.length; k++) {
+    var w = img.naturalWidth, h = img.naturalHeight, r = Math.min(1, tams[k] / Math.max(w, h));
+    var c = document.createElement('canvas'); c.width = Math.round(w * r); c.height = Math.round(h * r);
+    var ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, c.width, c.height);
+    var res = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'dontInvert' });
+    var cod = res && codigoDe(res.data);
+    if (cod) return cod;
+    if (r === 1) break;
+  }
+  return '';
+}
+
+function abrirImagen(file, cb) {
+  var img = new Image();
+  img.onload = function () { cb(img); };  // quien la usa hace URL.revokeObjectURL al acabar
+  img.onerror = function () {
+    apuntaError('no se lee ' + (file.type || '?') + ' ' + Math.round(file.size / 1024) + ' KB');
+    msg('Una foto no se ha podido leer.', true); cb(null);
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+// Reduce la foto para subirla rápido (paquete 1280 px / 0,75: ~200-450 KB; la hoja de recogida, más grande para sus QR)
+function reducida(img) {
+  var max = MODO === 'recogida' ? 2600 : 1280, w = img.naturalWidth, h = img.naturalHeight, r = Math.min(1, max / Math.max(w, h));
+  var c = document.createElement('canvas'); c.width = Math.round(w * r); c.height = Math.round(h * r);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', MODO === 'recogida' ? 0.85 : 0.75);
+}
+
+// ------------------------------------------------------------------ fotos
+
+function anadir(lista, origen) {
+  lista.forEach(function (file) {
+    var foto = { orden: siguiente++, url: null, estado: 'preparando' }, t0 = Date.now();
+    foto.d = { o: origen, kb: Math.round(file.size / 1024), tipo: file.type || '?' };
+    if (diag.fotos.length < 15) diag.fotos.push(foto.d);
+    fotos.push(foto); pintar();
+    abrirImagen(file, function (img) {
+      if (!img) { quitar(foto); return; }
+      foto.url = reducida(img);
+      foto.d.prep = Date.now() - t0; foto.t = Date.now();
+      subir(foto, 0);                       // primero a subir; el QR se busca después, sin frenar la subida
+      if (MODO !== 'paquete') { URL.revokeObjectURL(img.src); return; }
+      // Con el pedido ya sabido basta una pasada a 1280 px, para avisar si la foto es de otro paquete. Antes se miraba a 1280
+      // y 2600 px y sin QR congelaba la página 5-18 s por foto en un móvil medio, con la cámara sin responder (6-11).
+      foto.leyendo = true; pintar();
+      setTimeout(function () {
+        var t1 = Date.now(), cod = leerQR(img, P ? [1280] : [1280, 2600]);
+        foto.d.qr = Date.now() - t1;
+        URL.revokeObjectURL(img.src);
+        foto.leyendo = false;
+        if (fotos.indexOf(foto) < 0) return;
+        foto.qr = !!cod;
+        if (cod && P && cod !== P) {
+          // 20-11: la foto es de otro paquete → el de ahora queda «a medias» (sin preguntar ni borrar) y se pasa al otro con esta foto
+          var anterior = P.split('-')[0];
+          fotos.splice(fotos.indexOf(foto), 1); apuntarPendiente();
+          var m = leerMedias();
+          P = cod;
+          fotos = ((m[cod] && m[cod].ids) || []).map(function (id) { return { orden: siguiente++, id: id, estado: 'ok', url: null, d: { o: 'recuperada' } }; }).concat([foto]);
+          cabecera(); pintar(); apuntarPendiente();
+          msg('Esta foto es del pedido ' + cod.split('-')[0] + '. El pedido ' + anterior + ' queda en «Paquetes a medias».');
+          return;
+        }
+        if (cod && !P) fijarPedido(cod); else pintar();
+      }, 300);
+    });
+  });
+}
+
+function quitar(f) {
+  var i = fotos.indexOf(f); if (i < 0) return;
+  fotos.splice(i, 1); if (f.id) google.script.run.borrarFoto(f.id); pintar(); apuntarPendiente();
+}
+
+$('camara').onchange = $('galeria').onchange = function (ev) {
+  var lista = Array.prototype.slice.call(ev.target.files || []), origen = ev.target.id;
+  ev.target.value = '';
+  camaraAbierta(null);
+  if (lista.length) anadir(lista, origen);
+};
+// Si el móvil cierra la página mientras la cámara está abierta, al volver se sabe y se recupera el pedido (ver arranque)
+$('camara').onclick = $('escaner').onclick = function () { camaraAbierta({ t: Date.now(), p: P }); };
+
+// «Escanear etiqueta»: foto de cerca solo para leer el QR (no se guarda)
+$('escaner').onchange = function (ev) {
+  var f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+  camaraAbierta(null);
+  if (!f) return;
+  msg('Leyendo la etiqueta…');
+  abrirImagen(f, function (img) {
+    var cod = img && leerQR(img, [1280, 2600]);   // a 4000 px apenas lee más y congela la página
+    if (img && !cod) apuntaError('etiqueta sin leer');
+    if (img) URL.revokeObjectURL(img.src);
+    if (!cod) { msg('No se lee el QR. Acerca más el móvil a la etiqueta de control.', true); return; }
+    var num = cod.split('-')[0];
+    if (P && cod !== P && fotos.length) {   // 20-11: otro paquete → el de ahora queda «a medias», sin preguntar ni borrar
+      if (!subidas()) return;
+      var anterior = P.split('-')[0];
+      retomar(cod);
+      msg('✔ Etiqueta leída: pedido ' + num + '. El pedido ' + anterior + ' queda en «Paquetes a medias».');
+      return;
+    }
+    if (leerMedias()[cod]) { retomar(cod); return; }   // ese paquete estaba a medias: vuelven sus fotos
+    fijarPedido(cod);
+    // que se vea que ha leído la etiqueta (antes solo cambiaba el número de arriba y parecía que no hacía nada, 29-10)
+    msg('✔ Etiqueta leída: pedido ' + num + (enviados[num] ? '. Ya lo enviaste antes: las fotos nuevas se añaden.' : '. Ahora las fotos.'));
+  });
+};
+var enviados = {};   // pedidos enviados desde este móvil en esta sesión (solo para el aviso)
+
+// «Escribir nº de pedido» (20-11): por si la etiqueta ya no se puede escanear. Busca en Trello las piezas de ese pedido.
+$('btnManual').onclick = function () {
+  var ver = $('manual').style.display === 'none';
+  $('manual').style.display = ver ? '' : 'none';
+  if (ver) $('numPedido').focus();
+};
+$('numPedido').onkeydown = function (e) { if (e.key === 'Enter') $('buscarPedido').onclick(); };
+$('buscarPedido').onclick = function () {
+  var n = $('numPedido').value.replace(/\D/g, '');
+  if (n.length < 3) { $('piezas').innerHTML = '<span class="nota err">Escribe el número de pedido.</span>'; return; }
+  $('piezas').innerHTML = '<span class="nota">Buscando…</span>';
+  google.script.run
+    .withSuccessHandler(function (lista) {
+      $('piezas').innerHTML = '';
+      if (!lista || !lista.length) { $('piezas').innerHTML = '<span class="nota err">No encuentro el pedido ' + n + ' entre los paquetes abiertos.</span>'; return; }
+      if (lista.length === 1) { elegirManual(lista[0].codigo); return; }
+      lista.forEach(function (x) {
+        var b = document.createElement('button'); b.type = 'button';
+        b.innerHTML = '<b>Pieza ' + x.pieza + '</b> · ' + x.nombre;
+        b.onclick = function () { elegirManual(x.codigo); };
+        $('piezas').appendChild(b);
+      });
+    })
+    .withFailureHandler(function (e) { $('piezas').innerHTML = '<span class="nota err">' + String(e && e.message || e).replace(/^Error:\s*/, '') + '</span>'; })
+    .buscarPedido(n);
+};
+function elegirManual(cod) {
+  $('manual').style.display = 'none'; $('numPedido').value = ''; $('piezas').innerHTML = '';
+  var num = cod.split('-')[0];
+  if (P && cod !== P && fotos.length) {
+    if (!subidas()) return;
+    var anterior = P.split('-')[0];
+    retomar(cod);
+    msg('✔ Pedido ' + num + '. El pedido ' + anterior + ' queda en «Paquetes a medias».');
+    return;
+  }
+  if (leerMedias()[cod]) { retomar(cod); return; }
+  fijarPedido(cod);
+  msg('✔ Pedido ' + num + '. Ahora las fotos.');
+}
+
+function subir(foto, intento) {
+  foto.estado = 'subiendo'; pintar();
+  google.script.run
+    .withSuccessHandler(function (id) {
+      if (fotos.indexOf(foto) < 0) { google.script.run.borrarFoto(id); return; }  // la quitaron mientras subía
+      foto.id = id; foto.estado = 'ok'; foto.d.subir = Date.now() - foto.t; pintar(); apuntarPendiente(); seguirEnvio();
+    })
+    .withFailureHandler(function (e) {
+      apuntaError('subida: ' + String(e && e.message || e).slice(0, 80));
+      if (intento < 2) return subir(foto, intento + 1);
+      foto.estado = 'error'; pintar();
+      if (enviando) { enviando = false; pintar(); msg('Una foto no ha subido (' + String(e && e.message || e).replace(/^Error:\s*/, '') + '). Vuelve a pulsar Enviar.', true); }
+    })
+    .subirFoto({ modo: MODO, p: P, foto: foto.url });
+}
+
+var MARCA = { preparando: '…', subiendo: '↑', ok: '✓', error: '✗' };
+function pintar() {
+  var c = $('fotos'); c.innerHTML = '';
+  fotos.forEach(function (f, i) {
+    var d = document.createElement('div'); if (f.url) d.style.backgroundImage = 'url(' + f.url + ')';
+    d.innerHTML = '<span>' + (i + 1) + (f.qr ? ' ▣' : '') + '</span><b>×</b><i>' + MARCA[f.estado] + '</i>';
+    d.querySelector('b').onclick = function () { if (!enviando) quitar(f); };
+    c.appendChild(d);
+  });
+  var listas = fotos.length && fotos.every(function (f) { return f.url && !f.leyendo; });
+  $('enviar').disabled = !fotos.length || !!enviando || (MODO === 'paquete' && !P);
+  if (MODO === 'paquete') {
+    // La etiqueta de control va en la hoja de control, no en la caja (25-10): lo normal es escanearla de cerca.
+    // Si sale en alguna foto (a menos de ~50 cm), el pedido también se lee solo.
+    $('ayuda').textContent = P ? 'Fotos en orden: la pieza, la pieza en la caja y la caja cerrada.'
+      : 'Pulsa «Escanear etiqueta» y acerca el móvil a la etiqueta de control. Luego, las fotos: la pieza, en la caja y la caja cerrada.';
+    if (!P && fotos.length && !listas && !enviando) msg('Buscando la etiqueta en las fotos…');
+    else if (!P && listas && !enviando) msg('Falta el pedido: pulsa «Escanear etiqueta» y acerca el móvil a la etiqueta de control.', true);
+    else if (P && !enviando && /la etiqueta/.test($('msg').textContent)) msg('');
+  }
+}
+
+// ------------------------------------------------------------------ enviar
+
+$('enviar').onclick = function () {
+  var checks = {};
+  document.querySelectorAll('#checks input').forEach(function (i) { checks[i.dataset.k] = i.checked; });
+  if (MODO === 'paquete' && esJosepMaria()) checks = { estado: true, referencia: true };
+  // Sin las dos casillas no se envía (Bernat, 27-10)
+  if (MODO === 'paquete' && !(checks.estado && checks.referencia)) {
+    alert('Marca las dos casillas (estado y referencia) antes de enviar.');
+    $('checks').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  enviando = { checks: checks };
+  fotos.forEach(function (f) { if (f.estado === 'error') subir(f, 0); });  // reintento de las que fallaron
+  pintar(); seguirEnvio();
+};
+
+// Cuando todas las fotos están subidas, se deja el aviso (1-2 s: no toca las fotos)
+function seguirEnvio() {
+  if (!enviando) return;
+  var faltan = fotos.filter(function (f) { return f.estado !== 'ok'; }).length;
+  if (faltan) { msg('Terminando de subir ' + faltan + ' foto(s)…'); return; }
+  var checks = enviando.checks, pedido = P;
+  msg('Enviando…');
+  google.script.run
+    .withSuccessHandler(function (r) {
+      enviando = false; fotos = []; diag.fotos = []; diag.errores = []; diag.recargas = 0;
+      if (MODO === 'paquete') quitarMedia(pedido);   // enviado: sale de «Paquetes a medias»
+      if (MODO === 'paquete') enviados[pedido.split('-')[0]] = true;
+      document.querySelectorAll('#checks input').forEach(function (i) { i.checked = false; });
+      if (MODO === 'paquete') { P = ''; cabecera(); }  // listo para el siguiente paquete, sin salir de la página
+      pintar();
+      msg('✔ ' + (MODO === 'paquete' ? 'Pedido ' + pedido.split('-')[0] + ': ' : '') + r.fotos + ' foto(s) enviadas.' +
+          (MODO === 'paquete' ? ' Siguiente paquete.' : ' Ya está.'));
+    })
+    .withFailureHandler(function (e) { enviando = false; pintar(); msg('Error: ' + String(e && e.message || e).replace(/^Error:\s*/, '') + ' Vuelve a pulsar Enviar.', true); })
+    .guardar({ modo: MODO, p: pedido, operario: operario, checks: checks, ids: fotos.map(function (f) { return f.id; }), diag: diag });
+}
+
+// ------------------------------------------------------------------ arranque
+
+google.script.url.getLocation(function (loc) {
+  var par = loc.parameter || {};
+  var cod = codigoDe(par.p);
+  if (cod || par.m === 'p') {
+    MODO = 'paquete'; P = cod; ACCESO = !cod && par.m === 'p';
+    $('enviar').textContent = 'Enviar · siguiente paquete';
+    $('checks').innerHTML =
+      '<label class="check"><input type="checkbox" data-k="estado">He comprobado el estado de la pieza</label>' +
+      '<label class="check"><input type="checkbox" data-k="referencia">He comprobado la referencia / compatibilidad</label>';
+  } else {
+    MODO = 'recogida';
+    $('btnEscanear').style.display = 'none';
+    $('btnManual').style.display = 'none';
+    $('ayuda').textContent = 'Una foto de la hoja de control firmada, con los justificantes de B-Parts y Recambio Fácil.';
+    $('enviar').textContent = 'Enviar justificantes';
+  }
+  // la página se reinició con la cámara abierta: el móvil la cerró por falta de memoria y esa foto se ha perdido
+  try {
+    var cam = JSON.parse(localStorage.getItem('camaraAbierta') || 'null');
+    camaraAbierta(null);
+    if (cam && Date.now() - cam.t < 5 * 60000) {
+      diag.recargas = 1;
+      if (MODO === 'paquete' && !P && cam.p) P = cam.p;
+      setTimeout(function () { msg('El móvil ha cerrado la página al abrir la cámara y la foto no ha llegado. Hazla otra vez o usa Galería.', true); }, 0);
+    }
+  } catch (e) {}
+  recuperarPendiente();
+  cabecera(); pintar(); inicio();
+});
+</script>
+</body>
+</html>
